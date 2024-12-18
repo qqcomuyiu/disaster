@@ -149,3 +149,41 @@ if __name__ == "__main__":
 
         print(f"  Final Validation F1 Score: {final_f1:.4f}")
         print(f"  Validation Accuracy: {val_accuracy:.4f}")
+
+
+
+    print("Predicting on test set...")
+    
+    # 读取测试集数据
+    test_df = pd.read_csv('test.csv')  # 假设测试集数据位于 test.csv 文件中
+    test_texts = test_df['text'].tolist()
+    test_ids = test_df['id'].tolist()  # 测试集的 ID 列
+    
+    # 编码测试集文本
+    test_input_ids, test_attention_masks = encode_texts(test_texts)
+    
+    # 创建测试集数据加载器
+    test_data = TensorDataset(test_input_ids, test_attention_masks)
+    test_dataloader = DataLoader(test_data, sampler=SequentialSampler(test_data), batch_size=32)
+    
+    # 设置模型为评估模式
+    model.eval()
+    test_preds = []
+    
+    for batch in tqdm(test_dataloader, desc="Testing"):
+        b_input_ids = batch[0].to(device)
+        b_input_mask = batch[1].to(device)
+    
+        with torch.no_grad():
+            outputs = model(b_input_ids, attention_mask=b_input_mask)
+            logits = outputs.logits
+            probs = torch.softmax(logits, dim=1)[:, 1]  # 获取正类概率
+            preds = (probs > best_threshold).long()  # 使用最佳阈值进行分类
+            test_preds.extend(preds.cpu().numpy())
+    
+    # 将预测结果与 ID 结合
+    test_results = pd.DataFrame({'id': test_ids, 'target': test_preds})
+    
+    # 保存为 CSV 文件
+    test_results.to_csv('submission.csv', index=False)
+    print("Test predictions saved to submission.csv.")
